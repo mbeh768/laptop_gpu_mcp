@@ -13,6 +13,10 @@ import {
 } from "./paths.js";
 import { runForeground } from "./execRun.js";
 import { getJob, listJobs, startJob } from "./jobs.js";
+import { getDiagnostics } from "./diagnostics.js";
+
+const GB = 1024 ** 3;
+const formatGB = (bytes: number) => `${(bytes / GB).toFixed(1)} GB`;
 
 export function createServer(): McpServer {
   const server = new McpServer({
@@ -229,6 +233,58 @@ export function createServer(): McpServer {
         const message = err instanceof PathSecurityError ? err.message : String(err);
         return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
       }
+    }
+  );
+
+  server.registerTool(
+    "system_status",
+    {
+      title: "System diagnostics (storage, RAM, CPU, GPU)",
+      description:
+        "Reports current storage availability for the configured script/data roots, system RAM usage, CPU " +
+        "utilization (cores, load average, and a short-sampled busy%), and GPU utilization/memory/temperature " +
+        "(via nvidia-smi, if present). Useful for checking whether the machine has headroom before starting " +
+        "a job, or for checking on a job already in progress.",
+      inputSchema: {},
+    },
+    async () => {
+      const diag = await getDiagnostics();
+
+      const diskLines = diag.disks.length
+        ? diag.disks.map(
+            (d) =>
+              `  ${d.label} (${d.path}): ${formatGB(d.freeBytes)} free / ${formatGB(d.totalBytes)} total (${d.usedPercent}% used)`
+          )
+        : ["  (no disk info available)"];
+
+      const ramLine = `  ${formatGB(diag.ram.freeBytes)} free / ${formatGB(diag.ram.totalBytes)} total (${diag.ram.usedPercent}% used)`;
+
+      const cpuLine =
+        `  ${diag.cpu.cores} cores, ${diag.cpu.currentUtilizationPercent ?? "?"}% busy (sampled), ` +
+        `load average (1/5/15m): ${diag.cpu.loadavg.map((n) => n.toFixed(2)).join(" / ")}`;
+
+      const gpuLines = diag.gpus.length
+        ? diag.gpus.map(
+            (g) =>
+              `  ${g.name}: ${g.utilizationPercent}% util, ${g.memoryUsedMB}/${g.memoryTotalMB} MB used, ${g.temperatureC}°C`
+          )
+        : [`  (${diag.gpuError ?? "no GPU info available"})`];
+
+      const text = [
+        "Storage:",
+        ...diskLines,
+        "",
+        "RAM:",
+        ramLine,
+        "",
+        "CPU:",
+        cpuLine,
+        "",
+        "GPU:",
+        ...gpuLines,
+      ].join("\n");
+
+      return { content: [{ type: "text", text }] };
     }
   );
 
