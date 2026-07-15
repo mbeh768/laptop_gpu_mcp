@@ -15,7 +15,15 @@ export function createServer(): McpServer {
     "list_scripts",
     {
       title: "List runnable Python scripts",
-      description: `Lists .py files available under the scripts base directory (${config.scriptsBaseDir}).`,
+      description:
+        `Lists .py files available under the scripts base directory (${config.scriptsBaseDir})` +
+        (Object.keys(config.extraScriptRoots).length
+          ? ` and under these additional roots (prefix the returned path with the name to run it): ` +
+            Object.entries(config.extraScriptRoots)
+              .map(([name, dir]) => `${name} -> ${dir}`)
+              .join(", ")
+          : "") +
+        ".",
       inputSchema: {},
     },
     async () => {
@@ -41,7 +49,13 @@ export function createServer(): McpServer {
         "Runs in the foreground by default and returns stdout/stderr once it finishes. Set background=true " +
         "for long-running jobs (training/inference) to get a job_id back immediately, then poll it with job_status.",
       inputSchema: {
-        script: z.string().describe('Path to the script, relative to the scripts base directory, e.g. "train.py" or "sub/infer.py".'),
+        script: z
+          .string()
+          .describe(
+            'Path to the script. Relative to the scripts base directory by default, e.g. "train.py" or "sub/infer.py". ' +
+              "For an additional root, prefix with its name as returned by list_scripts, e.g. " +
+              '"laptop_gpu_share/otda-exp/experiments/run_experiment_2.py".'
+          ),
         env: z.string().describe(`Conda environment name to run under. One of: ${listCondaEnvs().join(", ") || "none found"}.`),
         args: z.array(z.string()).optional().describe("Optional CLI arguments passed to the script."),
         background: z.boolean().optional().describe("If true, runs the script in the background and returns a job_id immediately instead of blocking."),

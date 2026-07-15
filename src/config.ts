@@ -9,6 +9,7 @@ const configPath = path.join(moduleDir, "..", "config.json");
 interface FileConfig {
   scriptsBaseDir?: string;
   condaBaseDir?: string;
+  extraScriptRoots?: Record<string, string>;
   host?: string;
   port?: number;
   jobRetentionMs?: number;
@@ -23,6 +24,17 @@ if (fs.existsSync(configPath)) {
   }
 }
 
+// EXTRA_SCRIPT_ROOTS env format: "name1=/path/one,name2=/path/two"
+const envExtraScriptRoots = process.env.EXTRA_SCRIPT_ROOTS
+  ?.split(",")
+  .map((s) => s.trim())
+  .filter(Boolean)
+  .reduce<Record<string, string>>((acc, pair) => {
+    const idx = pair.indexOf("=");
+    if (idx > 0) acc[pair.slice(0, idx)] = pair.slice(idx + 1);
+    return acc;
+  }, {});
+
 // Precedence for every setting: environment variable > config.json > built-in
 // placeholder default. Copy config.example.json to config.json and edit it, or
 // pass env vars at startup — either works.
@@ -32,6 +44,15 @@ export const config = {
   ),
   condaBaseDir: path.resolve(
     process.env.CONDA_BASE_DIR ?? fileConfig.condaBaseDir ?? "/home/youruser/miniconda3"
+  ),
+  // Additional named script roots, addressable as "<name>/<relative path>" in
+  // run_python. Each is a separate trusted tree, sandboxed the same way as
+  // scriptsBaseDir (no traversal or symlink escape out of its own root).
+  extraScriptRoots: Object.fromEntries(
+    Object.entries(envExtraScriptRoots ?? fileConfig.extraScriptRoots ?? {}).map(([name, dir]) => [
+      name,
+      path.resolve(dir),
+    ])
   ),
   host: process.env.MCP_HOST ?? fileConfig.host ?? "0.0.0.0",
   port: Number(process.env.MCP_PORT ?? fileConfig.port ?? 8420),

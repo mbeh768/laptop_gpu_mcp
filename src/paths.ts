@@ -4,33 +4,62 @@ import { config } from "./config.js";
 
 export class PathSecurityError extends Error {}
 
+interface ScriptRoot {
+  /** Empty string for the default (unprefixed) root. */
+  name: string;
+  dir: string;
+}
+
+function getScriptRoots(): ScriptRoot[] {
+  return [
+    { name: "", dir: config.scriptsBaseDir },
+    ...Object.entries(config.extraScriptRoots).map(([name, dir]) => ({ name, dir })),
+  ];
+}
+
 /**
- * Resolves a user-supplied relative script path against the scripts base
- * directory and rejects anything that escapes it (symlinks included).
+ * Resolves a single script path against a single root, enforcing that the
+ * result (symlinks included) stays inside that root. Returns null if the
+ * path doesn't exist under this root, so callers can fall through to the
+ * next configured root.
+ */
+function resolveWithinRoot(root: ScriptRoot, relativePath: string): string | null {
+  const resolved = path.resolve(root.dir, relativePath);
+  const base = root.dir + path.sep;
+  if (!resolved.startsWith(base)) return null;
+  if (!fs.existsSync(resolved)) return null;
+  const real = fs.realpathSync(resolved);
+  if (real !== resolved && !(real + path.sep).startsWith(base)) return null;
+  return resolved;
+}
+
+/**
+ * Resolves a user-supplied script path against the configured script roots
+ * and rejects anything that escapes all of them (symlinks included). Extra
+ * roots are addressed as "<name>/rest/of/path"; the default root is
+ * addressed with no prefix, same as before extra roots existed.
  */
 export function resolveScriptPath(relativePath: string): string {
   if (path.isAbsolute(relativePath)) {
-    throw new PathSecurityError("Script path must be relative to the scripts base directory.");
+    throw new PathSecurityError("Script path must be relative to a configured script root.");
   }
-  const resolved = path.resolve(config.scriptsBaseDir, relativePath);
-  const base = config.scriptsBaseDir + path.sep;
-  if (!resolved.startsWith(base)) {
-    throw new PathSecurityError("Script path escapes the configured scripts base directory.");
-  }
-  if (!fs.existsSync(resolved)) {
-    throw new PathSecurityError(`Script not found: ${relativePath}`);
-  }
-  const real = fs.realpathSync(resolved);
-  if (!(real + path.sep).startsWith(base) && real !== resolved) {
-    // realpath resolves symlinks; make sure the target still lives inside base.
-    if (!real.startsWith(base)) {
-      throw new PathSecurityError("Script path resolves outside the scripts base directory (symlink escape).");
+
+  for (const root of getScriptRoots()) {
+    let rest = relativePath;
+    if (root.name) {
+      const prefix = root.name + "/";
+      if (!relativePath.startsWith(prefix)) continue;
+      rest = relativePath.slice(prefix.length);
     }
+    const resolved = resolveWithinRoot(root, rest);
+    if (resolved === null) continue;
+    if (!resolved.endsWith(".py")) {
+      throw new PathSecurityError("Only .py files may be executed.");
+    }
+    return resolved;
   }
-  if (!resolved.endsWith(".py")) {
-    throw new PathSecurityError("Only .py files may be executed.");
-  }
-  return resolved;
+
+  throw new PathSecurityError(`Script not found in any configured root: ${relativePath}`);
 }
 
 /**
@@ -62,17 +91,19 @@ export function resolveCondaPython(envName: string): string {
 
 export function listPythonScripts(): string[] {
   const results: string[] = [];
-  const base = config.scriptsBaseDir;
-  function walk(dir: string) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full);
-      } else if (entry.isFile() && entry.name.endsWith(".py")) {
-        results.push(path.relative(base, full));
+  for (const root of getScriptRoots()) {
+    const prefix = root.name ? root.name + "/" : "";
+    function walk(dir: string) {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+        } else if (entry.isFile() && entry.name.endsWith(".py")) {
+          results.push(prefix + path.relative(root.dir, full));
+        }
       }
     }
+    if (fs.existsSync(root.dir)) walk(root.dir);
   }
-  if (fs.existsSync(base)) walk(base);
   return results.sort();
 }
