@@ -33,13 +33,27 @@ export function resolveScriptPath(relativePath: string): string {
   return resolved;
 }
 
+/**
+ * Lists every conda environment found under condaBaseDir/envs (i.e. every
+ * directory with a bin/python inside it).
+ */
+export function listCondaEnvs(): string[] {
+  const envsBase = path.join(config.condaBaseDir, "envs");
+  if (!fs.existsSync(envsBase)) return [];
+  return fs
+    .readdirSync(envsBase, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(envsBase, entry.name, "bin", "python")))
+    .map((entry) => entry.name)
+    .sort();
+}
+
 export function resolveCondaPython(envName: string): string {
-  if (!config.allowedEnvs.includes(envName)) {
-    throw new PathSecurityError(
-      `Conda env "${envName}" is not in the allowed list: ${config.allowedEnvs.join(", ")}`
-    );
+  const envsBase = path.join(config.condaBaseDir, "envs") + path.sep;
+  const resolvedEnvDir = path.resolve(config.condaBaseDir, "envs", envName);
+  if (!resolvedEnvDir.startsWith(envsBase)) {
+    throw new PathSecurityError("Conda env name escapes the configured envs directory.");
   }
-  const pythonBin = path.join(config.condaBaseDir, "envs", envName, "bin", "python");
+  const pythonBin = path.join(resolvedEnvDir, "bin", "python");
   if (!fs.existsSync(pythonBin)) {
     throw new PathSecurityError(`Python binary not found for env "${envName}" at ${pythonBin}`);
   }

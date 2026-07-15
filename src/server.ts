@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { config } from "./config.js";
-import { listPythonScripts, resolveCondaPython, resolveScriptPath, PathSecurityError } from "./paths.js";
+import { listCondaEnvs, listPythonScripts, resolveCondaPython, resolveScriptPath, PathSecurityError } from "./paths.js";
 import { runForeground } from "./execRun.js";
 import { getJob, listJobs, startJob } from "./jobs.js";
 
@@ -36,13 +36,13 @@ export function createServer(): McpServer {
     {
       title: "Run a Python script",
       description:
-        "Executes a Python script from the configured scripts base directory using one of the allowed " +
-        `conda environments (${config.allowedEnvs.join(", ")}). Runs in the foreground by default and returns ` +
-        "stdout/stderr once it finishes. Set background=true for long-running jobs (training/inference) to " +
-        "get a job_id back immediately, then poll it with job_status.",
+        "Executes a Python script from the configured scripts base directory using any conda environment " +
+        `found under ${config.condaBaseDir}/envs (currently: ${listCondaEnvs().join(", ") || "none found"}). ` +
+        "Runs in the foreground by default and returns stdout/stderr once it finishes. Set background=true " +
+        "for long-running jobs (training/inference) to get a job_id back immediately, then poll it with job_status.",
       inputSchema: {
         script: z.string().describe('Path to the script, relative to the scripts base directory, e.g. "train.py" or "sub/infer.py".'),
-        env: z.string().describe(`Conda environment name to run under. One of: ${config.allowedEnvs.join(", ")}.`),
+        env: z.string().describe(`Conda environment name to run under. One of: ${listCondaEnvs().join(", ") || "none found"}.`),
         args: z.array(z.string()).optional().describe("Optional CLI arguments passed to the script."),
         background: z.boolean().optional().describe("If true, runs the script in the background and returns a job_id immediately instead of blocking."),
         timeoutMs: z.number().optional().describe("Foreground-only: kill the process after this many milliseconds (default 300000)."),

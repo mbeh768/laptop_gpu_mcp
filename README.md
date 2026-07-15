@@ -39,17 +39,16 @@ cp config.example.json config.json
 {
   "scriptsBaseDir": "/home/youruser/scripts",   // Where your .py files live
   "condaBaseDir": "/home/youruser/miniconda3",  // Your conda installation
-  "allowedEnvs": ["env1", "env2"],              // Conda envs you want to expose
   "host": "0.0.0.0",                            // Listen on all interfaces
   "port": 8420                                  // HTTP port (change if in use)
 }
 ```
 
-`config.json` is gitignored, so your paths and environment names never get
-committed. Every setting can also be overridden with an environment variable
-(`SCRIPTS_BASE_DIR`, `CONDA_BASE_DIR`, `ALLOWED_CONDA_ENVS` as a comma-separated
-list, `MCP_HOST`, `MCP_PORT`) — handy for one-off runs or systemd units. Env
-vars take precedence over `config.json`.
+Every conda environment found under `condaBaseDir/envs` is exposed automatically —
+there's no allowlist to maintain. `config.json` is gitignored, so your paths
+never get committed. Every setting can also be overridden with an environment
+variable (`SCRIPTS_BASE_DIR`, `CONDA_BASE_DIR`, `MCP_HOST`, `MCP_PORT`) — handy
+for one-off runs or systemd units. Env vars take precedence over `config.json`.
 
 ### 2. Security: Firewall and auth
 
@@ -126,7 +125,7 @@ Adapt these to verify your setup works.
 ## Next steps
 
 1. Clone this repo
-2. Set `SCRIPTS_BASE_DIR`, `CONDA_BASE_DIR`, `ALLOWED_CONDA_ENVS` for your machine
+2. Set `SCRIPTS_BASE_DIR`, `CONDA_BASE_DIR` for your machine
 3. `npm install && npm run build && npm start`
 4. Test connectivity: `curl http://your-server:8420/health`
 5. Add the HTTP connector to Claude Code/Desktop

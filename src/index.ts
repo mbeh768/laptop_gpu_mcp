@@ -2,6 +2,7 @@ import express from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer } from "./server.js";
 import { config } from "./config.js";
+import { listCondaEnvs } from "./paths.js";
 
 const app = express();
 app.use(express.json());
@@ -49,11 +50,11 @@ app.delete("/mcp", (_req, res) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, scriptsBaseDir: config.scriptsBaseDir, allowedEnvs: config.allowedEnvs });
+  res.json({ ok: true, scriptsBaseDir: config.scriptsBaseDir, condaEnvs: listCondaEnvs() });
 });
 
 app.listen(config.port, config.host, () => {
   console.log(`laptop-gpu-mcp listening on http://${config.host}:${config.port}/mcp`);
   console.log(`scripts base dir: ${config.scriptsBaseDir}`);
-  console.log(`allowed conda envs: ${config.allowedEnvs.join(", ")}`);
+  console.log(`conda envs found: ${listCondaEnvs().join(", ") || "none"}`);
 });

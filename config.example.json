@@ -1,7 +1,6 @@
 {
   "scriptsBaseDir": "/home/youruser/scripts",
   "condaBaseDir": "/home/youruser/miniconda3",
-  "allowedEnvs": ["env1", "env2"],
   "host": "0.0.0.0",
   "port": 8420,
   "jobRetentionMs": 86400000
