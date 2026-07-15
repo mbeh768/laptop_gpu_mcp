@@ -10,6 +10,7 @@ interface FileConfig {
   scriptsBaseDir?: string;
   condaBaseDir?: string;
   extraScriptRoots?: Record<string, string>;
+  linksBaseDir?: string;
   host?: string;
   port?: number;
   jobRetentionMs?: number;
@@ -53,6 +54,12 @@ export const config = {
       name,
       path.resolve(dir),
     ])
+  ),
+  // Directory where create_symlink is allowed to create links. Kept separate
+  // from scriptsBaseDir/extraScriptRoots since those are read-from roots,
+  // this is the one write-to location for the symlink tools.
+  linksBaseDir: path.resolve(
+    process.env.LINKS_BASE_DIR ?? fileConfig.linksBaseDir ?? "/home/youruser/local_data"
   ),
   host: process.env.MCP_HOST ?? fileConfig.host ?? "0.0.0.0",
   port: Number(process.env.MCP_PORT ?? fileConfig.port ?? 8420),

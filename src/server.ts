@@ -1,7 +1,16 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { config } from "./config.js";
-import { listCondaEnvs, listPythonScripts, resolveCondaPython, resolveScriptPath, PathSecurityError } from "./paths.js";
+import {
+  cleanupDeadSymlinks,
+  createSymlink,
+  listCondaEnvs,
+  listPythonScripts,
+  removeSymlink,
+  resolveCondaPython,
+  resolveScriptPath,
+  PathSecurityError,
+} from "./paths.js";
 import { runForeground } from "./execRun.js";
 import { getJob, listJobs, startJob } from "./jobs.js";
 
@@ -133,6 +142,93 @@ export function createServer(): McpServer {
         `--- stderr ---\n${job.stderr || "(empty so far)"}`,
       ];
       return { content: [{ type: "text", text: parts.join("\n\n") }] };
+    }
+  );
+
+  server.registerTool(
+    "create_symlink",
+    {
+      title: "Create a local symlink to shared data",
+      description:
+        `Creates a symlink under the local links directory (${config.linksBaseDir}) pointing at a file or ` +
+        "directory found in one of the configured script/data roots (same roots and prefix rules as " +
+        'run_python\'s "script" argument, e.g. "laptop_gpu_share/otda-exp/data"). Useful for tools (e.g. ' +
+        "Slideflow) that require data to live under a local-looking path rather than a network share. Note " +
+        "this only aliases the path — the underlying bytes still live wherever the target actually is, so it " +
+        "won't help if the real problem is the storage medium itself (e.g. mmap/locking issues over a network " +
+        "filesystem) rather than the path shape.",
+      inputSchema: {
+        target: z
+          .string()
+          .describe(
+            'Path to the file or directory to link to, using the same root/prefix rules as run_python\'s ' +
+              '"script" argument, e.g. "laptop_gpu_share/otda-exp/data".'
+          ),
+        linkName: z
+          .string()
+          .describe(`Relative path (under ${config.linksBaseDir}) where the symlink should be created, e.g. "otda_data".`),
+        overwrite: z
+          .boolean()
+          .optional()
+          .describe("If true, replace an existing symlink at linkName. Default false. Never overwrites a real file/directory."),
+      },
+    },
+    async ({ target, linkName, overwrite }) => {
+      try {
+        const result = createSymlink(target, linkName, { overwrite });
+        return { content: [{ type: "text", text: `Created symlink ${result.link} -> ${result.target}` }] };
+      } catch (err) {
+        const message = err instanceof PathSecurityError ? err.message : String(err);
+        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "remove_symlink",
+    {
+      title: "Remove a local data symlink",
+      description: `Removes a symlink previously created under the local links directory (${config.linksBaseDir}). Refuses to remove anything that isn't a symlink.`,
+      inputSchema: {
+        linkName: z.string().describe(`Relative path (under ${config.linksBaseDir}) of the symlink to remove, e.g. "otda_data".`),
+      },
+    },
+    async ({ linkName }) => {
+      try {
+        const removed = removeSymlink(linkName);
+        return { content: [{ type: "text", text: `Removed symlink ${removed}` }] };
+      } catch (err) {
+        const message = err instanceof PathSecurityError ? err.message : String(err);
+        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "cleanup_symlinks",
+    {
+      title: "Clean up dead data symlinks",
+      description:
+        `Scans the local links directory (${config.linksBaseDir}) for symlinks whose target no longer exists ` +
+        "(e.g. the shared drive was reorganized or the linked file/dir was deleted) and removes them, so the " +
+        "drive doesn't accumulate dead links over time.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const removed = cleanupDeadSymlinks();
+        return {
+          content: [
+            {
+              type: "text",
+              text: removed.length ? `Removed ${removed.length} dead link(s):\n${removed.join("\n")}` : "No dead links found.",
+            },
+          ],
+        };
+      } catch (err) {
+        const message = err instanceof PathSecurityError ? err.message : String(err);
+        return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      }
     }
   );
 

@@ -1,6 +1,8 @@
 {
   "scriptsBaseDir": "/home/youruser/scripts",
   "condaBaseDir": "/home/youruser/miniconda3",
+  "extraScriptRoots": {},
+  "linksBaseDir": "/home/youruser/local_data",
   "host": "0.0.0.0",
   "port": 8420,
   "jobRetentionMs": 86400000
