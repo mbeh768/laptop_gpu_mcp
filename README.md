@@ -56,7 +56,7 @@ This server has **no authentication**. It's safe only on private networks.
 
 If running on a machine you control (same network, no internet exposure):
 - Allow the port through your firewall for the remote client's subnet
-- Example (Linux): `sudo ufw allow from 192.168.1.0/24 to any port 8420`
+- Example (Linux): `sudo ufw allow from 10.0.0.0/24 to any port 8420`
 - Example (Windows): netsh or Windows Defender firewall rules
 
 If you need to expose this beyond a trusted network, add auth before deploying.
@@ -82,9 +82,10 @@ Health check: `curl http://localhost:8420/health`
 
 ### Claude Code CLI
 ```bash
-claude mcp add --transport http my-remote-python http://192.168.1.100:8420/mcp
+claude mcp add --transport http my-remote-python http://<server-ip>:8420/mcp
 ```
-(Replace `192.168.1.100` with your server's IP)
+(Replace `<server-ip>` with your server's IP — this repo keeps real deployment
+addresses out of git in a gitignored `address_book.json`, see `.gitignore`)
 
 ### Claude Desktop
 Settings → Connectors → Add custom connector, use the same URL.
